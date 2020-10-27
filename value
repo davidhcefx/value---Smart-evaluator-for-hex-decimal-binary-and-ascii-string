@@ -1,0 +1,102 @@
+#! /bin/python3
+from sys import argv
+from os.path import basename
+
+"""
+Smart evaluator for hex/decimal/bin/ascii string.
+
+$ value 48879
+0xbeef
+$ value 0xb
+0b1011
+$ value /bin/sh
+0x2f62 0x696e 0x2f73 0x68
+$ value 2f62696e
+'/bin'
+$ value 121 184 255  (RGB)
+121 = 0x79
+184 = 0xb8
+255 = 0xff
+$ value , . + -
+',' = 0x2c
+'.' = 0x2e
+'+' = 0x2b
+'-' = 0x2d
+"""
+
+DIGITS = [chr(ord('0') + i) for i in range(10)]
+HEXDIGITS = DIGITS + ['a', 'b', 'c', 'd', 'e', 'f']
+BINDIGITS = ['0', '1']
+
+
+# return as much numbers as possible
+def get_values(string):
+    if string.startswith('0x'):
+        string = string[2:]
+        if any(filter(lambda s: s not in HEXDIGITS, string)):
+            return []
+        else:
+            return [int(string, 16)]
+    elif string.startswith('0b'):
+        string = string[2:]
+        if any(filter(lambda s: s not in BINDIGITS, string)):
+            return []
+        else:
+            return [int(string, 2)]
+    else:
+        if any(filter(lambda s: s not in HEXDIGITS, string)):
+            return []
+        elif any(filter(lambda s: s not in DIGITS, string)):
+            # hex
+            return [int(string, 16)]
+        elif any(filter(lambda s: s not in BINDIGITS, string)):
+            # hex or decimal
+            res = [int(string, 16), int(string, 10)]
+            return remove_redundant(res)
+        else:
+            # hex or decimal or bin
+            res = [int(string, 16), int(string, 10), int(string, 2)]
+            return remove_redundant(res)
+
+def remove_redundant(lst):
+    n = lst.count(lst[0])
+    for i in range(n - 1):
+        lst.pop()
+
+    return lst
+
+def to_ascii(val):
+    res = []
+    s = hex(val)[2:]
+    for i in range(0, len(s), 2):
+        res.append(chr(int(s[i:i+2], 16)))
+
+    return "'" + ''.join(res) + "'"
+
+def to_raw(string):
+    res = []
+    h = ''.join([hex(ord(s))[2:] for s in string])
+    for i in range(0, len(h), 4):
+        res.append('0x' + h[i:i+4])
+
+    return ' '.join(res)
+
+def main(string):
+    values = get_values(string)
+    for val in values:
+        print(' = '.join([
+            str(val),
+            hex(val),
+            bin(val),
+            to_ascii(val)
+        ]))
+
+    print(f"'{string}' = {to_raw(string)}")
+
+if __name__ == '__main__':
+    if len(argv) == 1:
+        print(f'{basename(argv[0])} [string]')
+        print('Smart evaluator for hex/decimal/bin/ascii string.')
+    else:
+        for arg in argv[1:]:
+            main(arg)
