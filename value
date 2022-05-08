@@ -1,9 +1,6 @@
-#! /bin/python3
-from sys import argv
-from os.path import basename
-
+#! /usr/bin/env python3
 """
-Smart evaluator for hex/decimal/bin/ascii string.
+Smart evaluator for hex/decimal/bin/ascii strings.
 
 $ value 48879
 0xbeef
@@ -13,7 +10,7 @@ $ value /bin/sh
 0x2f62 0x696e 0x2f73 0x68
 $ value 2f62696e
 '/bin'
-$ value 121 184 255  (RGB)
+$ value 121 184 255  # RGB values
 121 = 0x79
 184 = 0xb8
 255 = 0xff
@@ -23,57 +20,12 @@ $ value , . + -
 '+' = 0x2b
 '-' = 0x2d
 """
+from typing import List, Set, Iterable, Optional
+from math import ceil
+from sys import argv
 
-DIGITS = [chr(ord('0') + i) for i in range(10)]
-HEXDIGITS = DIGITS + ['a', 'b', 'c', 'd', 'e', 'f']
-BINDIGITS = ['0', '1']
 
-
-# return as much numbers as possible
-def get_values(string):
-    if string.startswith('0x'):
-        string = string[2:]
-        if any(filter(lambda s: s not in HEXDIGITS, string)):
-            return []
-        else:
-            return [int(string, 16)]
-    elif string.startswith('0b'):
-        string = string[2:]
-        if any(filter(lambda s: s not in BINDIGITS, string)):
-            return []
-        else:
-            return [int(string, 2)]
-    else:
-        if any(filter(lambda s: s not in HEXDIGITS, string)):
-            return []
-        elif any(filter(lambda s: s not in DIGITS, string)):
-            # hex
-            return [int(string, 16)]
-        elif any(filter(lambda s: s not in BINDIGITS, string)):
-            # hex or decimal
-            res = [int(string, 16), int(string, 10)]
-            return remove_redundant(res)
-        else:
-            # hex or decimal or bin
-            res = [int(string, 16), int(string, 10), int(string, 2)]
-            return remove_redundant(res)
-
-def remove_redundant(lst):
-    n = lst.count(lst[0])
-    for i in range(n - 1):
-        lst.pop()
-
-    return lst
-
-def to_ascii(val):
-    res = []
-    s = hex(val)[2:]
-    for i in range(0, len(s), 2):
-        res.append(chr(int(s[i:i+2], 16)))
-
-    return "'" + ''.join(res) + "'"
-
-def to_raw(string):
+def to_raw(string: str) -> str:
     res = []
     h = ''.join([hex(ord(s))[2:] for s in string])
     for i in range(0, len(h), 4):
@@ -81,22 +33,65 @@ def to_raw(string):
 
     return ' '.join(res)
 
-def main(string):
-    values = get_values(string)
-    for val in values:
+def _bytes_decode_quote(b: bytes) -> Optional[str]:
+    try:
+        return f"'{b.decode()}'"
+    except UnicodeDecodeError:
+        return None
+
+def to_strings(value: int) -> Iterable[str]:
+    """Try decoding value with big and/or little endians."""
+    byte_size = ceil((len(hex(value)) - 2) / 2)
+    return set(filter(bool, map(lambda b: _bytes_decode_quote(b),
+                                map(lambda en: value.to_bytes(byte_size, en), ['big', 'little']))))
+
+def _parse_num(string: str, base: int) -> Optional[int]:
+    try:
+        return int(string, base)
+    except ValueError:
+        return None
+
+def parse_hex(string: str) -> Optional[int]:
+    return _parse_num(string, 16)
+
+def parse_dec(string: str) -> Optional[int]:
+    return _parse_num(string, 10)
+
+def parse_oct(string: str) -> Optional[int]:
+    return _parse_num(string, 8)
+
+def parse_bin(string: str) -> Optional[int]:
+    return _parse_num(string, 2)
+
+# TODO: better function names?
+def get_values(string: str) -> Iterable[int]:
+    """Return as many candidates as possible."""
+    # TODO: oct support
+    if string.startswith('0x'):
+        return filter(bool, [parse_hex(string[2:])])
+    if string.startswith('0b'):
+        return filter(bool, [parse_bin(string[2:])])
+
+    # try each base when no prefix
+    return set(filter(bool, map(lambda f: f(string), [parse_hex, parse_dec, parse_bin])))
+
+def main(string: str) -> None:
+    for value in get_values(string):
+        # TODO: better representing ways?
+#        print(value)
         print(' = '.join([
-            str(val),
-            hex(val),
-            bin(val),
-            to_ascii(val)
+            str(value),
+            hex(value),
+            bin(value),
+            *to_strings(value)
         ]))
 
     print(f"'{string}' = {to_raw(string)}")
 
 if __name__ == '__main__':
     if len(argv) == 1:
-        print(f'{basename(argv[0])} [string]')
-        print('Smart evaluator for hex/decimal/bin/ascii string.')
-    else:
-        for arg in argv[1:]:
-            main(arg)
+        print('Syntax: value STRING ...', __doc__)
+        raise SystemExit(1)
+
+    for arg in argv[1:]:
+        main(arg)
