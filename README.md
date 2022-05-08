@@ -13,13 +13,13 @@ $ value /bin/sh
 0x2f62 0x696e 0x2f73 0x68
 $ value 2f62696e
 '/bin'
-$ value 121 184 255  (RGB)
+$ value 121 184 255  # RGB values
 121 = 0x79
 184 = 0xb8
 255 = 0xff
-$ value , . + -
-',' = 0x2c
-'.' = 0x2e
+$ value + - , .
 '+' = 0x2b
 '-' = 0x2d
+',' = 0x2c
+'.' = 0x2e
 ```
