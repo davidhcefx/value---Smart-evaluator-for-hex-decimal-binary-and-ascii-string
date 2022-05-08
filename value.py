@@ -14,24 +14,22 @@ $ value 121 184 255  # RGB values
 121 = 0x79
 184 = 0xb8
 255 = 0xff
-$ value , . + -
-',' = 0x2c
-'.' = 0x2e
+$ value + - , .
 '+' = 0x2b
 '-' = 0x2d
+',' = 0x2c
+'.' = 0x2e
 """
-from typing import List, Set, Iterable, Optional
+from typing import Iterable, Optional
+from collections import Counter
 from math import ceil
 from sys import argv
 
 
-def to_raw(string: str) -> str:
-    res = []
-    h = ''.join([hex(ord(s))[2:] for s in string])
-    for i in range(0, len(h), 4):
-        res.append('0x' + h[i:i+4])
-
-    return ' '.join(res)
+def to_bytes(string: str) -> str:
+    """Convert string to space seperated octates (big endian); two octates a group."""
+    _bytes = string.encode()
+    return ' '.join(hex(int.from_bytes(_bytes[i:i+2], 'big')) for i in range(0, len(_bytes), 2))
 
 def _bytes_decode_quote(b: bytes) -> Optional[str]:
     try:
@@ -40,10 +38,10 @@ def _bytes_decode_quote(b: bytes) -> Optional[str]:
         return None
 
 def to_strings(value: int) -> Iterable[str]:
-    """Try decoding value with big and/or little endians."""
+    """Try decoding value with big and/or little endian."""
     byte_size = ceil((len(hex(value)) - 2) / 2)
-    return set(filter(bool, map(lambda b: _bytes_decode_quote(b),
-                                map(lambda en: value.to_bytes(byte_size, en), ['big', 'little']))))
+    return Counter(filter(bool, map(lambda b: _bytes_decode_quote(b),  # type: ignore[arg-type,return-value]
+                                    map(lambda e: value.to_bytes(byte_size, e), ['big', 'little']))))
 
 def _parse_num(string: str, base: int) -> Optional[int]:
     try:
@@ -63,30 +61,27 @@ def parse_oct(string: str) -> Optional[int]:
 def parse_bin(string: str) -> Optional[int]:
     return _parse_num(string, 2)
 
-# TODO: better function names?
-def get_values(string: str) -> Iterable[int]:
-    """Return as many candidates as possible."""
-    # TODO: oct support
+def get_all_values(string: str) -> Iterable[int]:
+    """Return all kinds of candidates, with ordering: Dec, Hex, Oct, Bin."""
     if string.startswith('0x'):
-        return filter(bool, [parse_hex(string[2:])])
+        return filter(bool, [parse_hex(string[2:])])  # type: ignore[list-item]
+    if string.startswith('0o'):
+        return filter(bool, [parse_oct(string[2:])])  # type: ignore[list-item]
     if string.startswith('0b'):
-        return filter(bool, [parse_bin(string[2:])])
+        return filter(bool, [parse_bin(string[2:])])  # type: ignore[list-item]
 
     # try each base when no prefix
-    return set(filter(bool, map(lambda f: f(string), [parse_hex, parse_dec, parse_bin])))
+    return Counter(filter(bool, map(lambda f: f(string),  # type: ignore[arg-type,return-value]
+                                    [parse_dec, parse_hex, parse_oct, parse_bin])))
 
-def main(string: str) -> None:
-    for value in get_values(string):
-        # TODO: better representing ways?
-#        print(value)
-        print(' = '.join([
-            str(value),
-            hex(value),
-            bin(value),
-            *to_strings(value)
-        ]))
+def show_value(string: str) -> None:
+    print('Dec | Hex | Oct | Bin | String')
+    print('--- | --- | --- | --- | ---')
+    for val in get_all_values(string):
+        print(' | '.join([str(val), hex(val), oct(val), bin(val), ' or '.join(to_strings(val))]))
 
-    print(f"'{string}' = {to_raw(string)}")
+    print("{:20} == '{}'\n".format(to_bytes(string), string))
+
 
 if __name__ == '__main__':
     if len(argv) == 1:
@@ -94,4 +89,4 @@ if __name__ == '__main__':
         raise SystemExit(1)
 
     for arg in argv[1:]:
-        main(arg)
+        show_value(arg)
